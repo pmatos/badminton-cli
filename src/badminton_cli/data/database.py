@@ -321,3 +321,53 @@ class Database:
             conn.execute("DELETE FROM players")
             conn.execute("DELETE FROM ranking_weeks")
             conn.commit()
+
+    def get_player_history(
+        self,
+        player_id: str,
+        discipline: Discipline | None = None,
+    ) -> list[tuple[RankingWeek, int, float]]:
+        """Get a player's rank history across all indexed weeks.
+
+        Args:
+            player_id: The player's ID (e.g., '01-150083').
+            discipline: Filter by discipline. If None, uses the player's best discipline.
+
+        Returns:
+            List of (RankingWeek, rank, points) tuples sorted by week chronologically.
+        """
+        with self._get_connection() as conn:
+            disc: Discipline
+            if discipline is None:
+                cursor = conn.execute(
+                    """
+                    SELECT discipline, MIN(rank) as best_rank
+                    FROM players WHERE player_id = ?
+                    GROUP BY discipline
+                    ORDER BY best_rank
+                    LIMIT 1
+                    """,
+                    (player_id,),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    return []
+                disc = Discipline(row["discipline"])
+            else:
+                disc = discipline
+
+            cursor = conn.execute(
+                """
+                SELECT rw.year, rw.week, p.rank, p.points
+                FROM players p
+                JOIN ranking_weeks rw ON p.ranking_week_id = rw.id
+                WHERE p.player_id = ? AND p.discipline = ?
+                ORDER BY rw.year, rw.week
+                """,
+                (player_id, disc.value),
+            )
+
+            return [
+                (RankingWeek(year=row["year"], week=row["week"]), row["rank"], row["points"])
+                for row in cursor
+            ]

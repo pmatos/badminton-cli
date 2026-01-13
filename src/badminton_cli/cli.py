@@ -240,6 +240,86 @@ def top(ctx: click.Context, discipline: str | None, limit: int, week: str | None
 
 
 @main.command()
+@click.argument("player_ids", nargs=-1, required=True)
+@click.option("--discipline", "-d", type=click.Choice(["HE", "HD", "DE", "DD", "HM", "DM"]),
+              help="Discipline to show (defaults to player's best)")
+@click.option("--points", "-p", is_flag=True, help="Show points instead of rank")
+@click.pass_context
+def graph(ctx: click.Context, player_ids: tuple[str, ...], discipline: str | None, points: bool) -> None:
+    """Show rank history graph for one or more players.
+
+    Examples:
+
+        badminton-cli graph 01-150083
+
+        badminton-cli graph 01-150083 06-153539 --discipline HE
+    """
+    from .ui.graphs import plot_multi_player_history, plot_rank_history
+
+    db: Database = ctx.obj["db"]
+
+    if not ensure_data(db, ctx.obj["downloader"]):
+        return
+
+    weeks = db.get_weeks()
+    if len(weeks) < 2:
+        console.print("[warning]Need at least 2 ranking weeks for history graph.[/]")
+        console.print("[info]Run 'update --all' to download historical data.[/]")
+        return
+
+    disc = Discipline(discipline) if discipline else None
+
+    if len(player_ids) == 1:
+        player_id = player_ids[0]
+        players = db.get_player_by_id(player_id)
+        if not players:
+            console.print(f"[warning]Player '{player_id}' not found.[/]")
+            return
+
+        history = db.get_player_history(player_id, disc)
+        if not history:
+            console.print(f"[warning]No history data for '{player_id}'.[/]")
+            return
+
+        actual_disc = disc
+        if actual_disc is None:
+            first_week = history[0][0]
+            entries = db.get_player_by_id(player_id, first_week)
+            if entries:
+                actual_disc = entries[0].discipline
+
+        plot_rank_history(history, players[0].full_name, actual_disc or Discipline.HE, show_points=points)
+    else:
+        histories: list[tuple[str, list[tuple[RankingWeek, int, float]]]] = []
+        actual_disc = disc
+
+        for player_id in player_ids:
+            players = db.get_player_by_id(player_id)
+            if not players:
+                console.print(f"[warning]Player '{player_id}' not found, skipping.[/]")
+                continue
+
+            history = db.get_player_history(player_id, disc)
+            if not history:
+                console.print(f"[warning]No history for '{player_id}', skipping.[/]")
+                continue
+
+            histories.append((players[0].full_name, history))
+
+            if actual_disc is None:
+                first_week = history[0][0]
+                entries = db.get_player_by_id(player_id, first_week)
+                if entries:
+                    actual_disc = entries[0].discipline
+
+        if not histories:
+            console.print("[warning]No valid player histories found.[/]")
+            return
+
+        plot_multi_player_history(histories, actual_disc or Discipline.HE, show_points=points)
+
+
+@main.command()
 @click.pass_context
 def history(ctx: click.Context) -> None:
     """List available ranking weeks."""
