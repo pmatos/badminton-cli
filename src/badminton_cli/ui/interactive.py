@@ -16,6 +16,17 @@ from .tables import RankingTable
 class InteractiveMode:
     """Interactive TUI for player search and exploration."""
 
+    HELP_TEXT = (
+        "[bold]Badminton CLI - Interactive Mode[/]\n\n"
+        "Commands:\n"
+        "  [cyan]<name>[/]     - Search for a player\n"
+        "  [cyan]compare[/]   - Compare two players\n"
+        "  [cyan]team[/]      - Calculate team points\n"
+        "  [cyan]top[/]       - Show top rankings\n"
+        "  [cyan]help[/]      - Show this help message\n"
+        "  [cyan]quit[/]      - Exit\n"
+    )
+
     def __init__(self, db: Database):
         self.db = db
         self.search = FuzzySearch(db)
@@ -24,17 +35,7 @@ class InteractiveMode:
     def run(self) -> None:
         """Run the interactive mode."""
         console.print(
-            Panel(
-                "[bold]Badminton CLI - Interactive Mode[/]\n\n"
-                "Commands:\n"
-                "  [cyan]<name>[/]     - Search for a player\n"
-                "  [cyan]compare[/]   - Compare two players\n"
-                "  [cyan]team[/]      - Calculate team points\n"
-                "  [cyan]top[/]       - Show top rankings\n"
-                "  [cyan]quit[/]      - Exit\n",
-                title="Welcome",
-                border_style="cyan",
-            )
+            Panel(self.HELP_TEXT, title="Welcome", border_style="cyan")
         )
 
         while True:
@@ -45,6 +46,8 @@ class InteractiveMode:
                 if command in ("quit", "exit", "q"):
                     console.print("[dim]Goodbye![/]")
                     break
+                elif command in ("help", "h", "?"):
+                    self._show_help()
                 elif command == "compare":
                     self._compare_mode()
                 elif command == "team":
@@ -58,6 +61,10 @@ class InteractiveMode:
                 break
             except EOFError:
                 break
+
+    def _show_help(self) -> None:
+        """Show help message."""
+        console.print(Panel(self.HELP_TEXT, title="Help", border_style="cyan"))
 
     def _search_mode(self, query: str) -> None:
         """Search for players."""

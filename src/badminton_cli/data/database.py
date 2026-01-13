@@ -141,7 +141,9 @@ class Database:
         weeks = self.get_weeks()
         return weeks[0] if weeks else None
 
-    def _row_to_player(self, row: sqlite3.Row, week_label: str | None) -> Player:
+    def _row_to_player(
+        self, row: sqlite3.Row, week_label: str | None, age_group_rank: int | None = None
+    ) -> Player:
         """Convert a database row to a Player object."""
         return Player(
             discipline=Discipline(row["discipline"]),
@@ -159,13 +161,64 @@ class Database:
             club=row["club"],
             district=row["district"],
             ranking_week=week_label,
+            age_group_rank=age_group_rank,
         )
+
+    def get_age_group_rank(
+        self,
+        player_id: str,
+        discipline: Discipline,
+        age_class: str,
+        week: RankingWeek,
+    ) -> int:
+        """Calculate a player's rank within their age group.
+
+        Args:
+            player_id: The player's ID.
+            discipline: The discipline to check.
+            age_class: The age class to filter by (e.g., 'U15').
+            week: The ranking week.
+
+        Returns:
+            The player's rank within their age group (1-indexed).
+        """
+        query = """
+            SELECT COUNT(*) + 1 as age_rank
+            FROM players p
+            JOIN ranking_weeks rw ON p.ranking_week_id = rw.id
+            WHERE rw.year = ? AND rw.week = ?
+            AND p.discipline = ?
+            AND p.age_class_2 = ?
+            AND p.points > (
+                SELECT points FROM players p2
+                JOIN ranking_weeks rw2 ON p2.ranking_week_id = rw2.id
+                WHERE rw2.year = ? AND rw2.week = ?
+                AND p2.player_id = ? AND p2.discipline = ?
+            )
+        """
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                query,
+                (
+                    week.year,
+                    week.week,
+                    discipline.value,
+                    age_class,
+                    week.year,
+                    week.week,
+                    player_id,
+                    discipline.value,
+                ),
+            )
+            row = cursor.fetchone()
+            return row[0] if row else 1
 
     def get_players(
         self,
         week: RankingWeek | None = None,
         discipline: Discipline | None = None,
         limit: int | None = None,
+        include_age_rank: bool = False,
     ) -> list[Player]:
         """Get players with optional filters.
 
@@ -173,6 +226,7 @@ class Database:
             week: Filter by ranking week. If None, uses current week.
             discipline: Filter by discipline.
             limit: Maximum number of results.
+            include_age_rank: Whether to include age-group rank for each player.
 
         Returns:
             List of matching Player objects.
@@ -202,18 +256,31 @@ class Database:
 
         with self._get_connection() as conn:
             cursor = conn.execute(query, params)
-            return [self._row_to_player(row, week_label) for row in cursor]
+            players = []
+            for row in cursor:
+                age_rank = None
+                if include_age_rank:
+                    age_rank = self.get_age_group_rank(
+                        row["player_id"],
+                        Discipline(row["discipline"]),
+                        row["age_class_2"],
+                        week,
+                    )
+                players.append(self._row_to_player(row, week_label, age_rank))
+            return players
 
     def get_player_by_id(
         self,
         player_id: str,
         week: RankingWeek | None = None,
+        include_age_rank: bool = False,
     ) -> list[Player]:
         """Get all entries for a player by their ID.
 
         Args:
             player_id: The player's ID (e.g., '01-150083').
             week: Filter by ranking week. If None, uses current week.
+            include_age_rank: Whether to include age-group rank for each entry.
 
         Returns:
             List of Player objects (one per discipline the player is ranked in).
@@ -234,7 +301,18 @@ class Database:
 
         with self._get_connection() as conn:
             cursor = conn.execute(query, (week.year, week.week, player_id))
-            return [self._row_to_player(row, week_label) for row in cursor]
+            players = []
+            for row in cursor:
+                age_rank = None
+                if include_age_rank:
+                    age_rank = self.get_age_group_rank(
+                        player_id,
+                        Discipline(row["discipline"]),
+                        row["age_class_2"],
+                        week,
+                    )
+                players.append(self._row_to_player(row, week_label, age_rank))
+            return players
 
     def search_players(
         self,

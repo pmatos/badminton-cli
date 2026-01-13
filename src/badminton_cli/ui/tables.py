@@ -14,11 +14,14 @@ class RankingTable:
     def create_top_rankings(
         players: list[Player],
         title: str = "Top Rankings",
+        show_age_rank: bool = False,
     ) -> Table:
         """Create a table of top ranked players."""
         table = Table(title=title, show_header=True, header_style="bold")
 
         table.add_column("#", style="dim", width=4, justify="right")
+        if show_age_rank:
+            table.add_column("Age#", style="dim", width=4, justify="right")
         table.add_column("Name", style="player.name", min_width=20)
         table.add_column("Club", style="player.club", min_width=15)
         table.add_column("Points", style="player.points", justify="right")
@@ -27,14 +30,19 @@ class RankingTable:
 
         for player in players:
             rank_style = get_rank_style(player.rank)
-            table.add_row(
-                f"[{rank_style}]{player.rank}[/]" if rank_style else str(player.rank),
+            rank_str = f"[{rank_style}]{player.rank}[/]" if rank_style else str(player.rank)
+            row = [rank_str]
+            if show_age_rank:
+                age_rank_str = str(player.age_group_rank) if player.age_group_rank else "-"
+                row.append(age_rank_str)
+            row.extend([
                 player.full_name,
                 player.club[:25] + "..." if len(player.club) > 25 else player.club,
                 f"{player.points:.3f}",
                 player.age_class_2,
                 str(player.tournaments),
-            )
+            ])
+            table.add_row(*row)
 
         return table
 
@@ -51,7 +59,6 @@ class RankingTable:
         table.add_column("Club", style="player.club", min_width=15)
         table.add_column("ID", style="dim")
         table.add_column("Best Rank", justify="right")
-        table.add_column("Match", justify="right", style="dim")
 
         for i, (result, players) in enumerate(results, 1):
             best_player = min(players, key=lambda p: p.rank)
@@ -61,7 +68,6 @@ class RankingTable:
                 best_player.club[:20] + "..." if len(best_player.club) > 20 else best_player.club,
                 result.player_id,
                 f"#{best_player.rank} ({best_player.discipline.value})",
-                f"{result.score:.0f}%",
             )
 
         return table
@@ -74,19 +80,29 @@ class RankingTable:
         """Create a table of a single player's rankings across disciplines."""
         table = Table(title=title, show_header=True, header_style="bold")
 
+        has_age_rank = any(p.age_group_rank is not None for p in players)
+
         table.add_column("Discipline", min_width=15)
         table.add_column("Rank", justify="right")
+        if has_age_rank:
+            table.add_column("Age Rank", justify="right")
         table.add_column("Points", justify="right", style="player.points")
         table.add_column("Tournaments", justify="right")
 
         for player in sorted(players, key=lambda p: p.rank):
             disc_style = get_discipline_style(player.discipline.value)
-            table.add_row(
+            row = [
                 f"[{disc_style}]{player.discipline.full_name}[/]",
                 f"#{player.rank}",
+            ]
+            if has_age_rank:
+                age_rank_str = f"#{player.age_group_rank}" if player.age_group_rank else "-"
+                row.append(age_rank_str)
+            row.extend([
                 f"{player.points:.3f}",
                 str(player.tournaments),
-            )
+            ])
+            table.add_row(*row)
 
         return table
 

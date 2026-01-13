@@ -135,8 +135,9 @@ def search(ctx: click.Context, name: str, limit: int) -> None:
 @main.command()
 @click.argument("player_id")
 @click.option("--week", "-w", help="Ranking week (e.g., 'KW2' or '2026-KW02')")
+@click.option("--age-rank", "-a", is_flag=True, help="Show rank within age group")
 @click.pass_context
-def player(ctx: click.Context, player_id: str, week: str | None) -> None:
+def player(ctx: click.Context, player_id: str, week: str | None, age_rank: bool) -> None:
     """Show detailed information for a player by ID."""
     db: Database = ctx.obj["db"]
 
@@ -144,7 +145,7 @@ def player(ctx: click.Context, player_id: str, week: str | None) -> None:
         return
 
     ranking_week = parse_week_arg(week) if week else None
-    players = db.get_player_by_id(player_id, ranking_week)
+    players = db.get_player_by_id(player_id, ranking_week, include_age_rank=age_rank)
 
     if not players:
         console.print(f"[warning]Player '{player_id}' not found.[/]")
@@ -214,8 +215,9 @@ def team(ctx: click.Context, id1: str, id2: str, discipline: str | None, week: s
               help="Filter by discipline")
 @click.option("--limit", "-n", default=20, help="Number of results")
 @click.option("--week", "-w", help="Ranking week")
+@click.option("--age-rank", "-a", is_flag=True, help="Show rank within age group")
 @click.pass_context
-def top(ctx: click.Context, discipline: str | None, limit: int, week: str | None) -> None:
+def top(ctx: click.Context, discipline: str | None, limit: int, week: str | None, age_rank: bool) -> None:
     """Show top ranked players."""
     db: Database = ctx.obj["db"]
 
@@ -225,7 +227,9 @@ def top(ctx: click.Context, discipline: str | None, limit: int, week: str | None
     ranking_week = parse_week_arg(week) if week else None
     disc = Discipline(discipline) if discipline else None
 
-    players = db.get_players(week=ranking_week, discipline=disc, limit=limit)
+    players = db.get_players(
+        week=ranking_week, discipline=disc, limit=limit, include_age_rank=age_rank
+    )
 
     if not players:
         console.print("[warning]No rankings available.[/]")
@@ -235,8 +239,46 @@ def top(ctx: click.Context, discipline: str | None, limit: int, week: str | None
     if disc:
         title += f" - {disc.full_name}"
 
-    table = RankingTable.create_top_rankings(players, title=title)
+    table = RankingTable.create_top_rankings(players, title=title, show_age_rank=age_rank)
     console.print(table)
+
+
+def parse_since_arg(since_str: str) -> tuple[int, int] | None:
+    """Parse a --since argument like '1y', '6m', '3m' into (year, week) cutoff.
+
+    Returns the (year, week) tuple representing the oldest week to include.
+    """
+    import re
+    from datetime import datetime, timedelta
+
+    since_str = since_str.strip().lower()
+
+    match = re.match(r"(\d+)([ym])", since_str)
+    if not match:
+        return None
+
+    value = int(match.group(1))
+    unit = match.group(2)
+
+    now = datetime.now()
+    if unit == "y":
+        cutoff = now - timedelta(days=value * 365)
+    else:  # 'm' for months
+        cutoff = now - timedelta(days=value * 30)
+
+    return (cutoff.year, cutoff.isocalendar()[1])
+
+
+def filter_history_since(
+    history: list[tuple[RankingWeek, int, float]],
+    since: tuple[int, int],
+) -> list[tuple[RankingWeek, int, float]]:
+    """Filter history to only include weeks after the given cutoff."""
+    return [
+        (week, rank, points)
+        for week, rank, points in history
+        if (week.year, week.week) >= since
+    ]
 
 
 @main.command()
@@ -244,8 +286,17 @@ def top(ctx: click.Context, discipline: str | None, limit: int, week: str | None
 @click.option("--discipline", "-d", type=click.Choice(["HE", "HD", "DE", "DD", "HM", "DM"]),
               help="Discipline to show (defaults to player's best)")
 @click.option("--points", "-p", is_flag=True, help="Show points instead of rank")
+@click.option("--since", "-s", help="Show history since duration (e.g., '1y', '6m', '3m')")
+@click.option("--age-rank", "-a", is_flag=True, help="Show rank within age group instead of overall")
 @click.pass_context
-def graph(ctx: click.Context, player_ids: tuple[str, ...], discipline: str | None, points: bool) -> None:
+def graph(
+    ctx: click.Context,
+    player_ids: tuple[str, ...],
+    discipline: str | None,
+    points: bool,
+    since: str | None,
+    age_rank: bool,
+) -> None:
     """Show rank history graph for one or more players.
 
     Examples:
@@ -253,7 +304,11 @@ def graph(ctx: click.Context, player_ids: tuple[str, ...], discipline: str | Non
         badminton-cli graph 01-150083
 
         badminton-cli graph 01-150083 06-153539 --discipline HE
+
+        badminton-cli graph 01-150083 --since 6m --age-rank
     """
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+
     from .ui.graphs import plot_multi_player_history, plot_rank_history
 
     db: Database = ctx.obj["db"]
@@ -267,7 +322,15 @@ def graph(ctx: click.Context, player_ids: tuple[str, ...], discipline: str | Non
         console.print("[info]Run 'update --all' to download historical data.[/]")
         return
 
+    since_cutoff = None
+    if since:
+        since_cutoff = parse_since_arg(since)
+        if since_cutoff is None:
+            console.print(f"[warning]Invalid --since format: '{since}'. Use e.g., '1y', '6m', '3m'.[/]")
+            return
+
     disc = Discipline(discipline) if discipline else None
+    y_label = "Age Rank" if age_rank else None
 
     if len(player_ids) == 1:
         player_id = player_ids[0]
@@ -281,6 +344,12 @@ def graph(ctx: click.Context, player_ids: tuple[str, ...], discipline: str | Non
             console.print(f"[warning]No history data for '{player_id}'.[/]")
             return
 
+        if since_cutoff:
+            history = filter_history_since(history, since_cutoff)
+            if not history:
+                console.print(f"[warning]No history data within the specified time range.[/]")
+                return
+
         actual_disc = disc
         if actual_disc is None:
             first_week = history[0][0]
@@ -288,7 +357,29 @@ def graph(ctx: click.Context, player_ids: tuple[str, ...], discipline: str | Non
             if entries:
                 actual_disc = entries[0].discipline
 
-        plot_rank_history(history, players[0].full_name, actual_disc or Discipline.HE, show_points=points)
+        if age_rank and not points:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task(
+                    f"Computing age-group ranks for {len(history)} weeks...", total=len(history)
+                )
+                age_class = players[0].age_class_2
+                new_history = []
+                for week, _, pts in history:
+                    age_grp_rank = db.get_age_group_rank(
+                        player_id, actual_disc or Discipline.HE, age_class, week
+                    )
+                    new_history.append((week, age_grp_rank, pts))
+                    progress.advance(task)
+                history = new_history
+
+        plot_rank_history(
+            history, players[0].full_name, actual_disc or Discipline.HE,
+            show_points=points, y_label_override=y_label
+        )
     else:
         histories: list[tuple[str, list[tuple[RankingWeek, int, float]]]] = []
         actual_disc = disc
@@ -304,7 +395,11 @@ def graph(ctx: click.Context, player_ids: tuple[str, ...], discipline: str | Non
                 console.print(f"[warning]No history for '{player_id}', skipping.[/]")
                 continue
 
-            histories.append((players[0].full_name, history))
+            if since_cutoff:
+                history = filter_history_since(history, since_cutoff)
+                if not history:
+                    console.print(f"[warning]No history for '{player_id}' in time range, skipping.[/]")
+                    continue
 
             if actual_disc is None:
                 first_week = history[0][0]
@@ -312,11 +407,26 @@ def graph(ctx: click.Context, player_ids: tuple[str, ...], discipline: str | Non
                 if entries:
                     actual_disc = entries[0].discipline
 
+            if age_rank and not points:
+                age_class = players[0].age_class_2
+                new_history = []
+                for week, _, pts in history:
+                    age_grp_rank = db.get_age_group_rank(
+                        player_id, actual_disc or Discipline.HE, age_class, week
+                    )
+                    new_history.append((week, age_grp_rank, pts))
+                history = new_history
+
+            histories.append((players[0].full_name, history))
+
         if not histories:
             console.print("[warning]No valid player histories found.[/]")
             return
 
-        plot_multi_player_history(histories, actual_disc or Discipline.HE, show_points=points)
+        plot_multi_player_history(
+            histories, actual_disc or Discipline.HE,
+            show_points=points, y_label_override=y_label
+        )
 
 
 @main.command()

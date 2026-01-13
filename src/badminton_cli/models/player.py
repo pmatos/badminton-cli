@@ -65,6 +65,7 @@ class Player:
     club: str
     district: str
     ranking_week: Optional[str] = None
+    age_group_rank: Optional[int] = None
 
     @property
     def full_name(self) -> str:

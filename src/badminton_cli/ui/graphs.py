@@ -5,11 +5,18 @@ import plotext as plt
 from ..models.player import Discipline, RankingWeek
 
 
+def _format_week_label(week: RankingWeek) -> str:
+    """Format a week label showing week and year."""
+    year_short = week.year % 100
+    return f"{week.week}/{year_short:02d}"
+
+
 def plot_rank_history(
     history: list[tuple[RankingWeek, int, float]],
     player_name: str,
     discipline: Discipline,
     show_points: bool = False,
+    y_label_override: str | None = None,
 ) -> None:
     """Plot a player's rank history as a terminal graph.
 
@@ -18,11 +25,12 @@ def plot_rank_history(
         player_name: Name of the player for the title.
         discipline: The discipline being plotted.
         show_points: If True, plot points instead of rank.
+        y_label_override: Override the y-axis label.
     """
     if not history:
         return
 
-    x_labels = [f"KW{w.week}" for w, _, _ in history]
+    x_labels = [_format_week_label(w) for w, _, _ in history]
     x_values = list(range(len(history)))
 
     if show_points:
@@ -31,6 +39,9 @@ def plot_rank_history(
     else:
         y_values = [rank for _, rank, _ in history]
         y_label = "Rank"
+
+    if y_label_override:
+        y_label = y_label_override
 
     plt.clear_figure()
     plt.plot(x_values, y_values, marker="braille")
@@ -51,6 +62,7 @@ def plot_multi_player_history(
     histories: list[tuple[str, list[tuple[RankingWeek, int, float]]]],
     discipline: Discipline,
     show_points: bool = False,
+    y_label_override: str | None = None,
 ) -> None:
     """Plot multiple players' rank histories on the same graph.
 
@@ -58,6 +70,7 @@ def plot_multi_player_history(
         histories: List of (player_name, history) tuples.
         discipline: The discipline being plotted.
         show_points: If True, plot points instead of rank.
+        y_label_override: Override the y-axis label.
     """
     if not histories:
         return
@@ -82,12 +95,16 @@ def plot_multi_player_history(
         plt.plot(x_values, y_values, label=player_name, marker="braille")
         plt.scatter(x_values, y_values)
 
-    x_labels = [f"KW{w}" for _, w in sorted_weeks]
+    x_labels = [f"{w}/{y % 100:02d}" for y, w in sorted_weeks]
     x_positions = list(range(len(sorted_weeks)))
+
+    y_label = "Points" if show_points else "Rank"
+    if y_label_override:
+        y_label = y_label_override
 
     plt.title(f"Rank Comparison - {discipline.full_name}")
     plt.xlabel("Week")
-    plt.ylabel("Points" if show_points else "Rank")
+    plt.ylabel(y_label)
 
     if not show_points:
         plt.yreverse()
