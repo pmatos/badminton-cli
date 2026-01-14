@@ -1,0 +1,13 @@
+{
+  "name": "badminton-cli",
+  "version": "1.0.0",
+  "description": "Claude Code plugin for exploring German U19 badminton rankings using badminton-cli",
+  "author": {
+    "name": "Paulo Matos",
+    "email": "pmatos@igalia.com"
+  },
+  "homepage": "https://github.com/pmatos/badminton-cli",
+  "repository": "https://github.com/pmatos/badminton-cli",
+  "license": "MIT",
+  "keywords": ["badminton", "rankings", "sports", "germany", "dbv"]
+}
