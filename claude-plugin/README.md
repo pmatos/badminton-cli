@@ -28,26 +28,28 @@ pipx install badminton-cli
 
 ### Step 2: Install the Plugin
 
-#### Option A: From Local Directory
-
-If you have the plugin source:
+#### Option A: Clone and Install
 
 ```bash
-# Navigate to Claude Code
+# Clone the repository
+git clone https://github.com/pmatos/badminton-cli.git
+cd badminton-cli
+
+# Start Claude Code and install the plugin
 claude
-
-# Install from local path
-/plugin install /path/to/badminton-cli/claude-plugin --scope user
+/plugin install ./claude-plugin --scope user
 ```
 
-#### Option B: From GitHub (when published)
+#### Option B: Development Mode
+
+For testing or development, run Claude Code with the plugin directory:
 
 ```bash
-/plugin marketplace add pmatos/badminton-cli
-/plugin install badminton-cli@pmatos/badminton-cli
+git clone https://github.com/pmatos/badminton-cli.git
+claude --plugin-dir ./badminton-cli/claude-plugin
 ```
 
-### Step 3: Enable the Plugin
+### Step 3: Enable the Plugin (if not auto-enabled)
 
 ```bash
 /plugin enable badminton-cli
