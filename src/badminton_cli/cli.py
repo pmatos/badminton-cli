@@ -12,6 +12,16 @@ from .ui.console import console
 from .ui.interactive import InteractiveMode
 from .ui.panels import ComparisonPanel, PlayerPanel, TeamPanel
 from .ui.tables import RankingTable
+from .utils.json_output import (
+    comparison_to_json,
+    graph_history_to_json,
+    history_weeks_to_json,
+    player_details_to_json,
+    print_json,
+    search_results_to_json,
+    team_to_json,
+    top_rankings_to_json,
+)
 
 
 def ensure_data(db: Database, downloader: Downloader) -> bool:
@@ -41,8 +51,9 @@ def ensure_data(db: Database, downloader: Downloader) -> bool:
 
 
 @click.group(invoke_without_command=True)
+@click.option("--json", "json_output", is_flag=True, help="Output data as JSON")
 @click.pass_context
-def main(ctx: click.Context) -> None:
+def main(ctx: click.Context, json_output: bool) -> None:
     """Badminton CLI - German U19 Rankings Explorer.
 
     Run without arguments to start interactive mode.
@@ -50,8 +61,12 @@ def main(ctx: click.Context) -> None:
     ctx.ensure_object(dict)
     ctx.obj["db"] = Database()
     ctx.obj["downloader"] = Downloader()
+    ctx.obj["json"] = json_output
 
     if ctx.invoked_subcommand is None:
+        if json_output:
+            console.print("[error]--json flag requires a subcommand.[/]")
+            return
         if not ensure_data(ctx.obj["db"], ctx.obj["downloader"]):
             return
         interactive = InteractiveMode(ctx.obj["db"])
@@ -115,6 +130,7 @@ def update(ctx: click.Context, download_all: bool, force: bool) -> None:
 def search(ctx: click.Context, name: str, limit: int) -> None:
     """Search for players by name."""
     db: Database = ctx.obj["db"]
+    json_output: bool = ctx.obj["json"]
 
     if not ensure_data(db, ctx.obj["downloader"]):
         return
@@ -125,11 +141,17 @@ def search(ctx: click.Context, name: str, limit: int) -> None:
     results = fuzzy.search_with_details(name, limit=limit)
 
     if not results:
-        console.print("[warning]No players found.[/]")
+        if json_output:
+            print_json([])
+        else:
+            console.print("[warning]No players found.[/]")
         return
 
-    table = RankingTable.create_search_results(results)
-    console.print(table)
+    if json_output:
+        print_json(search_results_to_json(results))
+    else:
+        table = RankingTable.create_search_results(results)
+        console.print(table)
 
 
 @main.command()
@@ -140,6 +162,7 @@ def search(ctx: click.Context, name: str, limit: int) -> None:
 def player(ctx: click.Context, player_id: str, week: str | None, age_rank: bool) -> None:
     """Show detailed information for a player by ID."""
     db: Database = ctx.obj["db"]
+    json_output: bool = ctx.obj["json"]
 
     if not ensure_data(db, ctx.obj["downloader"]):
         return
@@ -148,10 +171,16 @@ def player(ctx: click.Context, player_id: str, week: str | None, age_rank: bool)
     players = db.get_player_by_id(player_id, ranking_week, include_age_rank=age_rank)
 
     if not players:
-        console.print(f"[warning]Player '{player_id}' not found.[/]")
+        if json_output:
+            print_json({"error": f"Player '{player_id}' not found"})
+        else:
+            console.print(f"[warning]Player '{player_id}' not found.[/]")
         return
 
-    console.print(PlayerPanel.create(players))
+    if json_output:
+        print_json(player_details_to_json(players))
+    else:
+        console.print(PlayerPanel.create(players))
 
 
 @main.command()
@@ -162,6 +191,7 @@ def player(ctx: click.Context, player_id: str, week: str | None, age_rank: bool)
 def compare(ctx: click.Context, id1: str, id2: str, week: str | None) -> None:
     """Compare two players side by side."""
     db: Database = ctx.obj["db"]
+    json_output: bool = ctx.obj["json"]
 
     if not ensure_data(db, ctx.obj["downloader"]):
         return
@@ -172,13 +202,22 @@ def compare(ctx: click.Context, id1: str, id2: str, week: str | None) -> None:
     player2 = db.get_player_by_id(id2, ranking_week)
 
     if not player1:
-        console.print(f"[warning]Player '{id1}' not found.[/]")
+        if json_output:
+            print_json({"error": f"Player '{id1}' not found"})
+        else:
+            console.print(f"[warning]Player '{id1}' not found.[/]")
         return
     if not player2:
-        console.print(f"[warning]Player '{id2}' not found.[/]")
+        if json_output:
+            print_json({"error": f"Player '{id2}' not found"})
+        else:
+            console.print(f"[warning]Player '{id2}' not found.[/]")
         return
 
-    console.print(ComparisonPanel.create(player1, player2))
+    if json_output:
+        print_json(comparison_to_json(player1, player2))
+    else:
+        console.print(ComparisonPanel.create(player1, player2))
 
 
 @main.command()
@@ -191,6 +230,7 @@ def compare(ctx: click.Context, id1: str, id2: str, week: str | None) -> None:
 def team(ctx: click.Context, id1: str, id2: str, discipline: str | None, week: str | None) -> None:
     """Calculate combined team points for doubles."""
     db: Database = ctx.obj["db"]
+    json_output: bool = ctx.obj["json"]
 
     if not ensure_data(db, ctx.obj["downloader"]):
         return
@@ -201,13 +241,22 @@ def team(ctx: click.Context, id1: str, id2: str, discipline: str | None, week: s
     player2 = db.get_player_by_id(id2, ranking_week)
 
     if not player1:
-        console.print(f"[warning]Player '{id1}' not found.[/]")
+        if json_output:
+            print_json({"error": f"Player '{id1}' not found"})
+        else:
+            console.print(f"[warning]Player '{id1}' not found.[/]")
         return
     if not player2:
-        console.print(f"[warning]Player '{id2}' not found.[/]")
+        if json_output:
+            print_json({"error": f"Player '{id2}' not found"})
+        else:
+            console.print(f"[warning]Player '{id2}' not found.[/]")
         return
 
-    console.print(TeamPanel.create(player1, player2, discipline))
+    if json_output:
+        print_json(team_to_json(player1, player2, discipline))
+    else:
+        console.print(TeamPanel.create(player1, player2, discipline))
 
 
 @main.command()
@@ -220,6 +269,7 @@ def team(ctx: click.Context, id1: str, id2: str, discipline: str | None, week: s
 def top(ctx: click.Context, discipline: str | None, limit: int, week: str | None, age_rank: bool) -> None:
     """Show top ranked players."""
     db: Database = ctx.obj["db"]
+    json_output: bool = ctx.obj["json"]
 
     if not ensure_data(db, ctx.obj["downloader"]):
         return
@@ -232,15 +282,21 @@ def top(ctx: click.Context, discipline: str | None, limit: int, week: str | None
     )
 
     if not players:
-        console.print("[warning]No rankings available.[/]")
+        if json_output:
+            print_json([])
+        else:
+            console.print("[warning]No rankings available.[/]")
         return
 
-    title = f"Top {limit}"
-    if disc:
-        title += f" - {disc.full_name}"
+    if json_output:
+        print_json(top_rankings_to_json(players, show_age_rank=age_rank))
+    else:
+        title = f"Top {limit}"
+        if disc:
+            title += f" - {disc.full_name}"
 
-    table = RankingTable.create_top_rankings(players, title=title, show_age_rank=age_rank)
-    console.print(table)
+        table = RankingTable.create_top_rankings(players, title=title, show_age_rank=age_rank)
+        console.print(table)
 
 
 def parse_since_arg(since_str: str) -> tuple[int, int] | None:
@@ -312,21 +368,28 @@ def graph(
     from .ui.graphs import plot_multi_player_history, plot_rank_history
 
     db: Database = ctx.obj["db"]
+    json_output: bool = ctx.obj["json"]
 
     if not ensure_data(db, ctx.obj["downloader"]):
         return
 
     weeks = db.get_weeks()
     if len(weeks) < 2:
-        console.print("[warning]Need at least 2 ranking weeks for history graph.[/]")
-        console.print("[info]Run 'update --all' to download historical data.[/]")
+        if json_output:
+            print_json({"error": "Need at least 2 ranking weeks for history graph"})
+        else:
+            console.print("[warning]Need at least 2 ranking weeks for history graph.[/]")
+            console.print("[info]Run 'update --all' to download historical data.[/]")
         return
 
     since_cutoff = None
     if since:
         since_cutoff = parse_since_arg(since)
         if since_cutoff is None:
-            console.print(f"[warning]Invalid --since format: '{since}'. Use e.g., '1y', '6m', '3m'.[/]")
+            if json_output:
+                print_json({"error": f"Invalid --since format: '{since}'"})
+            else:
+                console.print(f"[warning]Invalid --since format: '{since}'. Use e.g., '1y', '6m', '3m'.[/]")
             return
 
     disc = Discipline(discipline) if discipline else None
@@ -336,18 +399,27 @@ def graph(
         player_id = player_ids[0]
         players = db.get_player_by_id(player_id)
         if not players:
-            console.print(f"[warning]Player '{player_id}' not found.[/]")
+            if json_output:
+                print_json({"error": f"Player '{player_id}' not found"})
+            else:
+                console.print(f"[warning]Player '{player_id}' not found.[/]")
             return
 
         history = db.get_player_history(player_id, disc)
         if not history:
-            console.print(f"[warning]No history data for '{player_id}'.[/]")
+            if json_output:
+                print_json({"error": f"No history data for '{player_id}'"})
+            else:
+                console.print(f"[warning]No history data for '{player_id}'.[/]")
             return
 
         if since_cutoff:
             history = filter_history_since(history, since_cutoff)
             if not history:
-                console.print(f"[warning]No history data within the specified time range.[/]")
+                if json_output:
+                    print_json({"error": "No history data within the specified time range"})
+                else:
+                    console.print("[warning]No history data within the specified time range.[/]")
                 return
 
         actual_disc = disc
@@ -358,14 +430,25 @@ def graph(
                 actual_disc = entries[0].discipline
 
         if age_rank and not points:
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-            ) as progress:
-                task = progress.add_task(
-                    f"Computing age-group ranks for {len(history)} weeks...", total=len(history)
-                )
+            if not json_output:
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                ) as progress:
+                    task = progress.add_task(
+                        f"Computing age-group ranks for {len(history)} weeks...", total=len(history)
+                    )
+                    age_class = players[0].age_class_2
+                    new_history = []
+                    for week, _, pts in history:
+                        age_grp_rank = db.get_age_group_rank(
+                            player_id, actual_disc or Discipline.HE, age_class, week
+                        )
+                        new_history.append((week, age_grp_rank, pts))
+                        progress.advance(task)
+                    history = new_history
+            else:
                 age_class = players[0].age_class_2
                 new_history = []
                 for week, _, pts in history:
@@ -373,13 +456,19 @@ def graph(
                         player_id, actual_disc or Discipline.HE, age_class, week
                     )
                     new_history.append((week, age_grp_rank, pts))
-                    progress.advance(task)
                 history = new_history
 
-        plot_rank_history(
-            history, players[0].full_name, actual_disc or Discipline.HE,
-            show_points=points, y_label_override=y_label
-        )
+        if json_output:
+            histories = [(players[0].full_name, history)]
+            print_json(graph_history_to_json(
+                histories, actual_disc or Discipline.HE,
+                show_points=points, show_age_rank=age_rank
+            ))
+        else:
+            plot_rank_history(
+                history, players[0].full_name, actual_disc or Discipline.HE,
+                show_points=points, y_label_override=y_label
+            )
     else:
         histories: list[tuple[str, list[tuple[RankingWeek, int, float]]]] = []
         actual_disc = disc
@@ -387,18 +476,21 @@ def graph(
         for player_id in player_ids:
             players = db.get_player_by_id(player_id)
             if not players:
-                console.print(f"[warning]Player '{player_id}' not found, skipping.[/]")
+                if not json_output:
+                    console.print(f"[warning]Player '{player_id}' not found, skipping.[/]")
                 continue
 
             history = db.get_player_history(player_id, disc)
             if not history:
-                console.print(f"[warning]No history for '{player_id}', skipping.[/]")
+                if not json_output:
+                    console.print(f"[warning]No history for '{player_id}', skipping.[/]")
                 continue
 
             if since_cutoff:
                 history = filter_history_since(history, since_cutoff)
                 if not history:
-                    console.print(f"[warning]No history for '{player_id}' in time range, skipping.[/]")
+                    if not json_output:
+                        console.print(f"[warning]No history for '{player_id}' in time range, skipping.[/]")
                     continue
 
             if actual_disc is None:
@@ -420,13 +512,22 @@ def graph(
             histories.append((players[0].full_name, history))
 
         if not histories:
-            console.print("[warning]No valid player histories found.[/]")
+            if json_output:
+                print_json({"error": "No valid player histories found"})
+            else:
+                console.print("[warning]No valid player histories found.[/]")
             return
 
-        plot_multi_player_history(
-            histories, actual_disc or Discipline.HE,
-            show_points=points, y_label_override=y_label
-        )
+        if json_output:
+            print_json(graph_history_to_json(
+                histories, actual_disc or Discipline.HE,
+                show_points=points, show_age_rank=age_rank
+            ))
+        else:
+            plot_multi_player_history(
+                histories, actual_disc or Discipline.HE,
+                show_points=points, y_label_override=y_label
+            )
 
 
 @main.command()
@@ -434,17 +535,24 @@ def graph(
 def history(ctx: click.Context) -> None:
     """List available ranking weeks."""
     db: Database = ctx.obj["db"]
+    json_output: bool = ctx.obj["json"]
 
     weeks = db.get_weeks()
 
     if not weeks:
-        console.print("[warning]No ranking data available. Run 'update --all' first.[/]")
+        if json_output:
+            print_json([])
+        else:
+            console.print("[warning]No ranking data available. Run 'update --all' first.[/]")
         return
 
-    table = RankingTable.create_history_list(
-        [(w.year, w.week) for w in weeks]
-    )
-    console.print(table)
+    week_tuples = [(w.year, w.week) for w in weeks]
+
+    if json_output:
+        print_json(history_weeks_to_json(week_tuples))
+    else:
+        table = RankingTable.create_history_list(week_tuples)
+        console.print(table)
 
 
 def parse_week_arg(week_str: str) -> RankingWeek | None:
