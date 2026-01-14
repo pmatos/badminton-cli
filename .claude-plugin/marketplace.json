@@ -1,0 +1,23 @@
+{
+  "name": "badminton-cli",
+  "owner": {
+    "name": "Paulo Matos",
+    "email": "pmatos@igalia.com"
+  },
+  "metadata": {
+    "description": "Claude Code plugin for German U19 badminton rankings",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "badminton-cli",
+      "source": "./claude-plugin",
+      "description": "Explore German U19 badminton rankings with slash commands, skills, and a specialized analysis agent",
+      "version": "1.0.0",
+      "author": {
+        "name": "Paulo Matos"
+      },
+      "keywords": ["badminton", "rankings", "sports", "germany", "dbv"]
+    }
+  ]
+}
