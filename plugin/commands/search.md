@@ -17,9 +17,9 @@ The search query is provided as: `$ARGUMENTS`
    which badminton-cli || uv tool install badminton-cli
    ```
 
-2. Run the search with JSON output:
+2. Run the search with JSON output (note: `--json` is a global flag that comes BEFORE the command):
    ```bash
-   badminton-cli search "$ARGUMENTS" --json
+   badminton-cli --json search "$ARGUMENTS"
    ```
 
 3. Parse the JSON results and present them in a readable format showing:

@@ -21,9 +21,9 @@ Example: `01-150083 01-150084`
 
 2. Parse the two player IDs from the arguments.
 
-3. Run the comparison with JSON output:
+3. Run the comparison with JSON output (note: `--json` is a global flag that comes BEFORE the command):
    ```bash
-   badminton-cli compare <id1> <id2> --json
+   badminton-cli --json compare <id1> <id2>
    ```
 
 4. Present a side-by-side comparison:

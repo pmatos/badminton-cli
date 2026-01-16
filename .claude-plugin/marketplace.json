@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "badminton-cli",
-      "source": "./claude-plugin",
+      "source": "./plugin",
       "description": "Explore German U19 badminton rankings with slash commands, skills, and a specialized analysis agent",
       "version": "1.0.0",
       "author": {

@@ -43,7 +43,7 @@ For local development or testing:
 
 ```bash
 git clone https://github.com/pmatos/badminton-cli.git
-claude --plugin-dir ./badminton-cli/claude-plugin
+claude --plugin-dir ./badminton-cli/plugin
 ```
 
 ### Step 3: Enable the Plugin (if not auto-enabled)
@@ -117,7 +117,7 @@ For complex analysis tasks, Claude can use the specialized ranking analyst agent
 ## Plugin Structure
 
 ```
-claude-plugin/
+plugin/
 ├── .claude-plugin/
 │   └── plugin.json           # Plugin manifest
 ├── commands/
@@ -128,7 +128,8 @@ claude-plugin/
 │   └── update.md             # /badminton:update
 ├── skills/
 │   └── badminton-cli/
-│       └── SKILL.md          # CLI usage skill
+│       ├── SKILL.md          # CLI usage skill
+│       └── references/       # Detailed documentation
 ├── agents/
 │   └── ranking-analyst.md    # Analysis agent
 └── README.md                 # This file
@@ -162,10 +163,10 @@ badminton-cli update
 
 To modify the plugin:
 
-1. Edit files in the `claude-plugin/` directory
+1. Edit files in the `plugin/` directory
 2. Test with Claude Code using `--plugin-dir`:
    ```bash
-   claude --plugin-dir /path/to/badminton-cli/claude-plugin
+   claude --plugin-dir /path/to/badminton-cli/plugin
    ```
 
 ## License

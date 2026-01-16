@@ -19,9 +19,9 @@ Player IDs are in the format `XX-XXXXXX` (e.g., `01-150083`).
    which badminton-cli || uv tool install badminton-cli
    ```
 
-2. Get player details with JSON output and age-group ranking:
+2. Get player details with JSON output and age-group ranking (note: `--json` is a global flag that comes BEFORE the command):
    ```bash
-   badminton-cli player "$ARGUMENTS" --age-rank --json
+   badminton-cli --json player "$ARGUMENTS" --age-rank
    ```
 
 3. Present the information clearly:

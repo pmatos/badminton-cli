@@ -25,14 +25,14 @@ Valid disciplines:
    which badminton-cli || uv tool install badminton-cli
    ```
 
-2. Run the top command with JSON output:
+2. Run the top command with JSON output (note: `--json` is a global flag that comes BEFORE the command):
    - If discipline specified:
      ```bash
-     badminton-cli top --discipline "$ARGUMENTS" --limit 20 --age-rank --json
+     badminton-cli --json top --discipline "$ARGUMENTS" --limit 20 --age-rank
      ```
    - If no discipline specified, show top for all disciplines:
      ```bash
-     badminton-cli top --limit 10 --age-rank --json
+     badminton-cli --json top --limit 10 --age-rank
      ```
 
 3. Present the rankings in a clear table format:

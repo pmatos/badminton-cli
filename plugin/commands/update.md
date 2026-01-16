@@ -38,4 +38,4 @@ Optional flags: `$ARGUMENTS`
 4. After successful update, suggest next steps:
    - Search for players: `/badminton:search <name>`
    - View top rankings: `/badminton:top`
-   - Check available weeks: `badminton-cli history --json`
+   - Check available weeks: `badminton-cli --json history`
