@@ -41,7 +41,7 @@ badminton-cli player 01-150083
 badminton-cli top --discipline HE
 
 # Compare two players
-badminton-cli compare 01-150083 01-150084
+badminton-cli compare 01-150083 01-150086
 
 # View ranking history graph
 badminton-cli graph 01-150083 --since 6m
