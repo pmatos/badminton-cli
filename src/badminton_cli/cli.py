@@ -12,6 +12,7 @@ from .ui.console import console
 from .ui.interactive import InteractiveMode
 from .ui.panels import ComparisonPanel, PlayerPanel, TeamPanel
 from .ui.tables import RankingTable
+from .config import clear_poi, get_config_path, get_poi, set_poi
 from .utils.json_output import (
     comparison_to_json,
     graph_history_to_json,
@@ -123,6 +124,40 @@ def update(ctx: click.Context, download_all: bool, force: bool) -> None:
                 progress.update(task, description="[error]Could not fetch current week[/]")
 
 
+@main.group()
+def poi() -> None:
+    """Manage Player of Interest (POI) for default player ID."""
+
+
+@poi.command("set")
+@click.argument("player_id")
+def poi_set(player_id: str) -> None:
+    """Set the Player of Interest."""
+    set_poi(player_id)
+    console.print(f"[success]POI set to {player_id}[/]")
+
+
+@poi.command("show")
+def poi_show() -> None:
+    """Show the current Player of Interest."""
+    player_id = get_poi()
+    if player_id:
+        console.print(f"POI: [bold]{player_id}[/]")
+        console.print(f"Config: {get_config_path()}")
+    else:
+        console.print("[warning]No POI configured.[/]")
+
+
+@poi.command("clear")
+def poi_clear() -> None:
+    """Clear the Player of Interest."""
+    clear_poi()
+    console.print("[success]POI cleared.[/]")
+
+
+main.add_command(poi)
+
+
 @main.command()
 @click.argument("name")
 @click.option("--limit", "-n", default=10, help="Maximum results to show")
@@ -155,13 +190,22 @@ def search(ctx: click.Context, name: str, limit: int) -> None:
 
 
 @main.command()
-@click.argument("player_id")
+@click.argument("player_id", required=False, default=None)
 @click.option("--week", "-w", help="Ranking week (e.g., 'KW2' or '2026-KW02')")
 @click.option("--age-rank", "-a", is_flag=True, help="Show rank within age group")
 @click.pass_context
-def player(ctx: click.Context, player_id: str, week: str | None, age_rank: bool) -> None:
-    """Show detailed information for a player by ID."""
+def player(ctx: click.Context, player_id: str | None, week: str | None, age_rank: bool) -> None:
+    """Show detailed information for a player by ID.
+
+    If no PLAYER_ID is given, uses the configured POI (see 'poi set').
+    """
     db: Database = ctx.obj["db"]
+
+    if player_id is None:
+        player_id = get_poi()
+        if player_id is None:
+            console.print("[error]No player ID given and no POI configured. Use 'poi set <id>' first.[/]")
+            return
     json_output: bool = ctx.obj["json"]
 
     if not ensure_data(db, ctx.obj["downloader"]):
@@ -338,7 +382,7 @@ def filter_history_since(
 
 
 @main.command()
-@click.argument("player_ids", nargs=-1, required=True)
+@click.argument("player_ids", nargs=-1)
 @click.option("--discipline", "-d", type=click.Choice(["HE", "HD", "DE", "DD", "HM", "DM"]),
               help="Discipline to show (defaults to player's best)")
 @click.option("--points", "-p", is_flag=True, help="Show points instead of rank")
@@ -355,6 +399,8 @@ def graph(
 ) -> None:
     """Show rank history graph for one or more players.
 
+    If no PLAYER_IDS are given, uses the configured POI (see 'poi set').
+
     Examples:
 
         badminton-cli graph 01-150083
@@ -369,6 +415,13 @@ def graph(
 
     db: Database = ctx.obj["db"]
     json_output: bool = ctx.obj["json"]
+
+    if not player_ids:
+        poi_id = get_poi()
+        if poi_id is None:
+            console.print("[error]No player IDs given and no POI configured. Use 'poi set <id>' first.[/]")
+            return
+        player_ids = (poi_id,)
 
     if not ensure_data(db, ctx.obj["downloader"]):
         return
