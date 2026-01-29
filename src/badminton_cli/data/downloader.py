@@ -12,7 +12,9 @@ from ..models.player import RankingWeek
 type ProgressCallback = Callable[[RankingWeek, int, int], None]
 
 BASE_URL = "https://turniere.badminton.de"
+RANKING_URL = f"{BASE_URL}/ranking"
 HISTORY_URL = f"{BASE_URL}/ranking/embed/history"
+DOWNLOAD_URL = f"{BASE_URL}/ranking/download"
 EXCEL_URL_PATTERN = f"{BASE_URL}/uploads/ranking/Ranking_{{year}}_KW{{week:02d}}.xlsx"
 
 
@@ -135,8 +137,32 @@ class Downloader:
 
         return downloaded
 
+    def get_live_current_week(self) -> RankingWeek | None:
+        """Fetch the current week from the live ranking page."""
+        from datetime import datetime
+
+        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+            response = client.get(RANKING_URL)
+            response.raise_for_status()
+
+            match = re.search(r"Rangliste\s+KW\s*(\d+)", response.text)
+            if not match:
+                return None
+
+            week = int(match.group(1))
+            year = datetime.now().year
+            return RankingWeek(
+                year=year, week=week, url=DOWNLOAD_URL, is_current=True
+            )
+
     def get_current_week(self) -> RankingWeek | None:
         """Get the current (most recent) ranking week."""
+        try:
+            live = self.get_live_current_week()
+            if live is not None:
+                return live
+        except (httpx.HTTPError, Exception):
+            pass
         weeks = self.get_available_weeks()
         return weeks[0] if weeks else None
 
