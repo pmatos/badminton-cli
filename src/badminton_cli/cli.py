@@ -25,12 +25,38 @@ from .utils.json_output import (
 )
 
 
+def _download_and_index(db: Database, downloader: Downloader, week: "RankingWeek") -> bool:
+    """Download and index a single ranking week. Returns True on success."""
+    path = downloader.download_week(week, force=True)
+    players = parse_excel(path, week)
+    db.index_week(week, players)
+    return True
+
+
 def ensure_data(db: Database, downloader: Downloader) -> bool:
     """Ensure we have data to work with.
 
     Returns True if data is available, False otherwise.
     """
-    if db.get_current_week() is not None:
+    local_week = db.get_current_week()
+
+    if local_week is not None:
+        try:
+            remote_week = downloader.get_current_week()
+            if remote_week and (remote_week.year, remote_week.week) > (local_week.year, local_week.week):
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                ) as progress:
+                    progress.add_task(
+                        f"New ranking week {remote_week.label} available, updating...",
+                        total=None,
+                    )
+                    _download_and_index(db, downloader, remote_week)
+                console.print(f"[success]Updated to {remote_week.label}[/]")
+        except Exception:
+            pass
         return True
 
     console.print("[info]No local data found. Downloading current rankings...[/]")
@@ -41,9 +67,7 @@ def ensure_data(db: Database, downloader: Downloader) -> bool:
             console.print("[error]Could not fetch ranking data.[/]")
             return False
 
-        path = downloader.download_week(week)
-        players = parse_excel(path, week)
-        db.index_week(week, players)
+        _download_and_index(db, downloader, week)
         console.print(f"[success]Downloaded and indexed {week.label}[/]")
         return True
     except Exception as e:
